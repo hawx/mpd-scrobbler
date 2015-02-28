@@ -9,26 +9,9 @@ package mpd
 import (
 	"fmt"
 	"net/textproto"
+	"strconv"
 	"strings"
 )
-
-// Quote quotes strings in the format understood by MPD.
-// See: http://git.musicpd.org/cgit/master/mpd.git/tree/src/util/Tokenizer.cxx
-func quote(s string) string {
-	q := make([]byte, 2+2*len(s))
-	i := 0
-	q[i], i = '"', i+1
-	for _, c := range []byte(s) {
-		if c == '"' {
-			q[i], i = '\\', i+1
-			q[i], i = '"', i+1
-		} else {
-			q[i], i = c, i+1
-		}
-	}
-	q[i], i = '"', i+1
-	return string(q[:i])
-}
 
 // Client represents a client connection to a MPD server.
 type Client struct {
@@ -100,51 +83,6 @@ func (c *Client) Ping() error {
 	return c.okCmd("ping")
 }
 
-func (c *Client) readList(key string) (list []string, err error) {
-	list = []string{}
-	key += ": "
-	for {
-		line, err := c.text.ReadLine()
-		if err != nil {
-			return nil, err
-		}
-		if line == "OK" {
-			break
-		}
-		if !strings.HasPrefix(line, key) {
-			return nil, textproto.ProtocolError("unexpected: " + line)
-		}
-		list = append(list, line[len(key):])
-	}
-	return
-}
-
-func (c *Client) readAttrsList(startKey string) (attrs []Attrs, err error) {
-	attrs = []Attrs{}
-	startKey += ": "
-	for {
-		line, err := c.text.ReadLine()
-		if err != nil {
-			return nil, err
-		}
-		if line == "OK" {
-			break
-		}
-		if strings.HasPrefix(line, startKey) { // new entry begins
-			attrs = append(attrs, Attrs{})
-		}
-		if len(attrs) == 0 {
-			return nil, textproto.ProtocolError("unexpected: " + line)
-		}
-		i := strings.Index(line, ": ")
-		if i < 0 {
-			return nil, textproto.ProtocolError("can't parse line: " + line)
-		}
-		attrs[len(attrs)-1][line[0:i]] = line[i+2:]
-	}
-	return attrs, nil
-}
-
 func (c *Client) readAttrs(terminator string) (attrs Attrs, err error) {
 	attrs = make(Attrs)
 	for {
@@ -165,31 +103,56 @@ func (c *Client) readAttrs(terminator string) (attrs Attrs, err error) {
 	return
 }
 
-// CurrentSong returns information about the current song in the playlist.
-func (c *Client) CurrentSong() (Attrs, error) {
-	id, err := c.cmd("currentsong")
-	if err != nil {
-		return nil, err
-	}
-	c.text.StartResponse(id)
-	defer c.text.EndResponse(id)
-	return c.readAttrs("OK")
+type Song struct {
+	Title, Artist, Album, AlbumArtist, File string
 }
 
-// Status returns information about the current status of MPD.
-func (c *Client) Status() (Attrs, error) {
-	id, err := c.cmd("status")
-	if err != nil {
-		return nil, err
-	}
-	c.text.StartResponse(id)
-	defer c.text.EndResponse(id)
-	return c.readAttrs("OK")
+type Pos struct {
+	Percent float64
+	Seconds int // status time
+	Length  int // status time
 }
 
-// Stats displays statistics (number of artists, songs, playtime, etc)
-func (c *Client) Stats() (Attrs, error) {
-	id, err := c.cmd("stats")
+func (c *Client) CurrentSong() (Song, error) {
+	s, err := c.cmdReadAttrs("currentsong")
+	if err != nil {
+		return Song{}, nil
+	}
+
+	return Song{s["Title"], s["Artist"], s["Album"], s["AlbumArtist"], s["file"]}, nil
+}
+
+func (c *Client) CurrentPos() (pos Pos, err error) {
+	st, err := c.cmdReadAttrs("status")
+	if err != nil {
+		return
+	}
+
+	parts := strings.Split(st["time"], ":")
+
+	pos.Seconds, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return
+	}
+	pos.Length, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return
+	}
+	pos.Percent = float64(pos.Seconds) / float64(pos.Length) * 100
+	return
+}
+
+func (c *Client) PlayTime() (int, error) {
+	s, err := c.cmdReadAttrs("stats")
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.Atoi(s["playtime"])
+}
+
+func (c *Client) cmdReadAttrs(cmd string) (Attrs, error) {
+	id, err := c.cmd(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -217,23 +180,4 @@ func (c *Client) okCmd(format string, args ...interface{}) error {
 	c.text.StartResponse(id)
 	defer c.text.EndResponse(id)
 	return c.readOKLine("OK")
-}
-
-func (c *Client) idle(subsystems ...string) ([]string, error) {
-	id, err := c.cmd("idle %s", strings.Join(subsystems, " "))
-	if err != nil {
-		return nil, err
-	}
-	c.text.StartResponse(id)
-	defer c.text.EndResponse(id)
-	return c.readList("changed")
-}
-
-func (c *Client) noIdle() (err error) {
-	id, err := c.cmd("noidle")
-	if err == nil {
-		c.text.StartResponse(id)
-		c.text.EndResponse(id)
-	}
-	return
 }

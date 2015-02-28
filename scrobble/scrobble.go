@@ -7,7 +7,8 @@ import (
 )
 
 type Api struct {
-	api *lastfm.Api
+	api  *lastfm.Api
+	Name string
 }
 
 func New(name, apiKey, secret, username, password, uriBase string) (*Api, error) {
@@ -17,7 +18,7 @@ func New(name, apiKey, secret, username, password, uriBase string) (*Api, error)
 		return nil, err
 	}
 
-	return &Api{api}, nil
+	return &Api{api, name}, nil
 }
 
 func (api *Api) Scrobble(artist, album, albumArtist, title string, timestamp time.Time) error {

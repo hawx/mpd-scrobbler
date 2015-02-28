@@ -2,11 +2,9 @@ package client
 
 import (
 	"log"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/hawx/mpdrobble/client/gompd/mpd"
+	"github.com/hawx/mpdrobble/client/mpd"
 )
 
 const (
@@ -15,18 +13,10 @@ const (
 	submitPercentage = 50
 )
 
-type PosSong struct {
-	Artist      string
-	Album       string
-	AlbumArtist string
-	Title       string
-	Start       time.Time
-}
-
 type Client struct {
 	client    *mpd.Client
-	song      mpdSong
-	pos       mpdPos
+	song      mpd.Song
+	pos       mpd.Pos
 	start     int // stats curtime
 	starttime time.Time
 	submitted bool
@@ -38,28 +28,45 @@ func Dial(network, addr string) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{c, mpdSong{}, mpdPos{}, 0, time.Now(), false}, nil
+	return &Client{
+		client:    c,
+		song:      mpd.Song{},
+		pos:       mpd.Pos{},
+		start:     0,
+		starttime: time.Now(),
+		submitted: false,
+	}, nil
 }
 
 func (c *Client) Close() error {
 	return c.client.Close()
 }
 
-func (c *Client) Watch(interval time.Duration, ch chan PosSong) {
+func (c *Client) Song() Song {
+	return Song{
+		Album:       c.song.Album,
+		Artist:      c.song.Artist,
+		AlbumArtist: c.song.AlbumArtist,
+		Title:       c.song.Title,
+		Start:       c.starttime,
+	}
+}
+
+func (c *Client) Watch(interval time.Duration, toSubmit chan Song, nowPlaying chan Song) {
 	for _ = range time.Tick(interval) {
-		playtime, err := c.playTime()
+		playtime, err := c.client.PlayTime()
 		if err != nil {
 			log.Println("err(PlayTime):", err)
 			continue
 		}
 
-		song, err := c.currentSong()
+		song, err := c.client.CurrentSong()
 		if err != nil {
 			log.Println("err(CurrentSong):", err)
 			continue
 		}
 
-		pos, err := c.currentPos()
+		pos, err := c.client.CurrentPos()
 		if err != nil {
 			log.Println("err(CurrentPos):", err)
 			continue
@@ -71,23 +78,17 @@ func (c *Client) Watch(interval time.Duration, ch chan PosSong) {
 			c.pos = pos
 			c.start = playtime
 			c.starttime = time.Now().UTC()
+
 			c.submitted = false
-			log.Println("New Song:", song)
+			nowPlaying <- c.Song()
 		}
 
 		// still playing
 		if pos != c.pos {
 			c.pos = pos
 			if c.canSubmit(playtime) {
-				log.Println("Submitting:", song)
 				c.submitted = true
-				ch <- PosSong{
-					Album:       c.song.Album,
-					Artist:      c.song.Artist,
-					AlbumArtist: c.song.AlbumArtist,
-					Title:       c.song.Title,
-					Start:       c.starttime,
-				}
+				toSubmit <- c.Song()
 			}
 		}
 	}
@@ -100,42 +101,4 @@ func (c *Client) canSubmit(playtime int) bool {
 
 	return playtime-c.start >= submitTime ||
 		playtime-c.start >= c.pos.Length/(100/submitPercentage)
-}
-
-func (c *Client) playTime() (int, error) {
-	s, err := c.client.Stats()
-	if err != nil {
-		return 0, err
-	}
-
-	return strconv.Atoi(s["playtime"])
-}
-
-func (c *Client) currentSong() (mpdSong, error) {
-	s, err := c.client.CurrentSong()
-	if err != nil {
-		return mpdSong{}, nil
-	}
-
-	return mpdSong{s["Title"], s["Artist"], s["Album"], s["AlbumArtist"], s["file"]}, nil
-}
-
-func (c *Client) currentPos() (pos mpdPos, err error) {
-	st, err := c.client.Status()
-	if err != nil {
-		return
-	}
-
-	parts := strings.Split(st["time"], ":")
-
-	pos.Seconds, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return
-	}
-	pos.Length, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return
-	}
-	pos.Percent = float64(pos.Seconds) / float64(pos.Length) * 100
-	return
 }

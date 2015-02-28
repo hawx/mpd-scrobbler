@@ -77,15 +77,22 @@ func main() {
 		log.Println("connected to", k)
 	}
 
-	toSubmit := make(chan client.PosSong)
+	toSubmit := make(chan client.Song)
+	nowPlaying := make(chan client.Song)
 
-	go c.Watch(sleepTime, toSubmit)
+	go c.Watch(sleepTime, toSubmit, nowPlaying)
+	go func() {
+		for s := range nowPlaying {
+			log.Println("Now playing:", s)
+		}
+	}()
+
 	go func() {
 		for s := range toSubmit {
 			for _, api := range apis {
 				err := api.Scrobble(s.Artist, s.Album, s.AlbumArtist, s.Title, s.Start)
 				if err != nil {
-					log.Println("err(Submit):", err)
+					log.Println("err(Submit,", api.Name+"):", err)
 				}
 			}
 			log.Println("Submitted:", s)
