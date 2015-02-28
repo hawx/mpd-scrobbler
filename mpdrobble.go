@@ -82,20 +82,19 @@ func main() {
 
 	go c.Watch(sleepTime, toSubmit, nowPlaying)
 	go func() {
-		for s := range nowPlaying {
-			log.Println("Now playing:", s)
-		}
-	}()
-
-	go func() {
-		for s := range toSubmit {
-			for _, api := range apis {
-				err := api.Scrobble(s.Artist, s.Album, s.AlbumArtist, s.Title, s.Start)
-				if err != nil {
-					log.Println("err(Submit,", api.Name+"):", err)
+		for {
+			select {
+			case s := <-nowPlaying:
+				log.Println("Now playing:", s)
+			case s := <-toSubmit:
+				for _, api := range apis {
+					err := api.Scrobble(s.Artist, s.Album, s.AlbumArtist, s.Title, s.Start)
+					if err != nil {
+						log.Println("err(Submit,", api.Name+"):", err)
+					}
 				}
+				log.Println("Submitted:", s)
 			}
-			log.Println("Submitted:", s)
 		}
 	}()
 
