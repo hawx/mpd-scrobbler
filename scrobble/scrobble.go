@@ -22,26 +22,22 @@ func New(name, apiKey, secret, username, password, uriBase string) (*Api, error)
 }
 
 func (api *Api) Scrobble(artist, album, albumArtist, title string, timestamp time.Time) error {
-	p := lastfm.P{
-		"artist":      artist,
-		"album":       album,
-		"albumArtist": albumArtist,
-		"track":       title,
-		"timestamp":   timestamp.Unix(),
-	}
-
-	_, err := api.api.Track.Scrobble(p)
+	_, err := api.api.Track.Scrobble(lastfm.ScrobbleArgs{
+		Artist:      artist,
+		Album:       album,
+		AlbumArtist: albumArtist,
+		Track:       title,
+		Timestamp:   timestamp.Unix(),
+	})
 	return err
 }
 
 func (api *Api) NowPlaying(artist, album, albumArtist, title string) error {
-	p := lastfm.P{
-		"artist":      artist,
-		"album":       album,
-		"albumArtist": albumArtist,
-		"track":       title,
-	}
-
-	_, err := api.api.Track.UpdateNowPlaying(p)
+	_, err := api.api.Track.UpdateNowPlaying(lastfm.UpdateNowPlayingArgs{
+		Artist:      artist,
+		Track:       title,
+		Album:       album,
+		AlbumArtist: albumArtist,
+	})
 	return err
 }

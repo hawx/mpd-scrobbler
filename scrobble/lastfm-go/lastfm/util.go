@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/xml"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -90,107 +89,14 @@ func getSignature(params map[string]string, secret string) (sig string) {
 	return
 }
 
-func formatArgs(args, rules P) (result map[string]string, err error) {
-	result = make(map[string]string)
-	if _, ok := rules["indexing"]; ok {
-
-		for _, p := range rules["indexing"].([]string) {
-			if valI, ok := args[p]; ok {
-				switch valI.(type) {
-				case string:
-					key := p + "[0]"
-					val := valI.(string)
-					result[key] = val
-				case int:
-					key := p + "[0]"
-					val := strconv.Itoa(valI.(int))
-					result[key] = val
-				case int64: //timestamp
-					key := p + "[0]"
-					val := strconv.FormatInt(valI.(int64), 10)
-					result[key] = val
-				case []string: //with indeces
-					for i, val := range valI.([]string) {
-						key := fmt.Sprintf("%s[%d]", p, i)
-						result[key] = val
-					}
-				default:
-					err = newLibError(
-						ErrorInvalidTypeOfArgument,
-						Messages[ErrorInvalidTypeOfArgument],
-					)
-					break
-				}
-			} else if _, ok := args[p+"[0]"]; ok {
-				for i := 0; ; i++ {
-					key := fmt.Sprintf("%s[%d]", p, i)
-					if valI, ok := args[key]; ok {
-						var val string
-						switch valI.(type) {
-						case string:
-							val = valI.(string)
-						case int:
-							val = strconv.Itoa(valI.(int))
-						case int64:
-							val = strconv.FormatInt(valI.(int64), 10)
-						default:
-							err = newLibError(
-								ErrorInvalidTypeOfArgument,
-								Messages[ErrorInvalidTypeOfArgument],
-							)
-							break
-						}
-						result[key] = val
-					}
-				}
-			}
-			if err != nil {
-				break
-			}
-		}
-	}
-	if err != nil {
-		return
-	}
-
-	if _, ok := rules["plain"]; ok {
-		for _, key := range rules["plain"].([]string) {
-			if valI, ok := args[key]; ok {
-				var val string
-				switch valI.(type) {
-				case string:
-					val = valI.(string)
-				case int:
-					val = strconv.Itoa(valI.(int))
-				case int64:
-					val = strconv.FormatInt(valI.(int64), 10)
-				case []string: //comma delimited
-					ss := valI.([]string)
-					if len(ss) > 10 {
-						ss = ss[:10]
-					}
-					val = strings.Join(ss, ",")
-				default:
-					err = newLibError(
-						ErrorInvalidTypeOfArgument,
-						Messages[ErrorInvalidTypeOfArgument],
-					)
-					break
-				}
-				result[key] = val
-			}
-		}
-	}
-	if err != nil {
-		return
-	}
-	return
+type Args interface {
+	Format() (map[string]string, error)
 }
 
 //////////////
 // POST API //
 //////////////
-func callPost(apiMethod string, baseUri string, params *apiParams, args P, result interface{}, rules P, withSession bool) (err error) {
+func callPost(apiMethod string, baseUri string, params *apiParams, args Args, result interface{}, withSession bool) (err error) {
 	if withSession {
 		if err = requireAuth(params); err != nil {
 			return
@@ -216,7 +122,7 @@ func callPost(apiMethod string, baseUri string, params *apiParams, args P, resul
 		tmp["sk"] = params.sk
 	}
 
-	formated, err := formatArgs(args, rules)
+	formated, err := args.Format()
 	for k, v := range formated {
 		tmp[k] = v
 		postData.Add(k, v)
