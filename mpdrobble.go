@@ -85,7 +85,14 @@ func main() {
 		for {
 			select {
 			case s := <-nowPlaying:
+				for _, api := range apis {
+					err := api.NowPlaying(s.Artist, s.Album, s.AlbumArtist, s.Title)
+					if err != nil {
+						log.Println("err(Submit,", api.Name+"):", err)
+					}
+				}
 				log.Println("Now playing:", s)
+
 			case s := <-toSubmit:
 				for _, api := range apis {
 					err := api.Scrobble(s.Artist, s.Album, s.AlbumArtist, s.Title, s.Start)

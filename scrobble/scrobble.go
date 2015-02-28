@@ -33,3 +33,15 @@ func (api *Api) Scrobble(artist, album, albumArtist, title string, timestamp tim
 	_, err := api.api.Track.Scrobble(p)
 	return err
 }
+
+func (api *Api) NowPlaying(artist, album, albumArtist, title string) error {
+	p := lastfm.P{
+		"artist":      artist,
+		"album":       album,
+		"albumArtist": albumArtist,
+		"track":       title,
+	}
+
+	_, err := api.api.Track.UpdateNowPlaying(p)
+	return err
+}

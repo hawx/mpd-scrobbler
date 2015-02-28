@@ -13,3 +13,12 @@ func (api trackApi) Scrobble(args map[string]interface{}) (result TrackScrobble,
 	})
 	return
 }
+
+//track.updateNowPlaying
+func (api trackApi) UpdateNowPlaying(args map[string]interface{}) (result TrackUpdateNowPlaying, err error) {
+	defer func() { appendCaller(err, "lastfm.Track.UpdateNowPlaying") }()
+	err = callPost("track.updatenowplaying", api.uriBase, api.params, args, &result, P{
+		"plain": []string{"artist", "track", "album", "trackNumber", "context", "mbid", "duration", "albumArtist"},
+	})
+	return
+}
