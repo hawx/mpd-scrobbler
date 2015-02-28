@@ -23,30 +23,7 @@ func requireAuth(params *apiParams) (err error) {
 	return
 }
 
-/*
-func checkRequiredParams(params P, required ...string) (err error) {
-    var missing []string
-    ng := false
-    for _, p := range required {
-        if _, ok := params[p]; !ok {
-            missing = append(missing, p)
-            ng = true
-        }
-    }
-    if ng {
-        err = newLibError(
-            ErrorParameterMissing,
-            fmt.Sprintf(Messages[ErrorParameterMissing], required, missing),
-        )
-    }
-    return
-}
-*/
-
 func constructUrl(base string, params url.Values) (uri string) {
-	//if ResponseFormat == "json" {
-	//params.Add("format", ResponseFormat)
-	//}
 	p := params.Encode()
 	uri = base + "?" + p
 	return
@@ -114,7 +91,6 @@ func getSignature(params map[string]string, secret string) (sig string) {
 }
 
 func formatArgs(args, rules P) (result map[string]string, err error) {
-
 	result = make(map[string]string)
 	if _, ok := rules["indexing"]; ok {
 
@@ -211,105 +187,16 @@ func formatArgs(args, rules P) (result map[string]string, err error) {
 	return
 }
 
-/////////////
-// GET API //
-/////////////
-func callGet(apiMethod string, params *apiParams, args map[string]interface{}, result interface{}, rules P) (err error) {
-	urlParams := url.Values{}
-	urlParams.Add("method", apiMethod)
-	urlParams.Add("api_key", params.apikey)
-
-	formated, err := formatArgs(args, rules)
-	if err != nil {
-		return
-	}
-	for k, v := range formated {
-		urlParams.Add(k, v)
-	}
-
-	uri := constructUrl(UriApiSecBase, urlParams)
-
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", uri, nil)
-	if err != nil {
-		return
-	}
-	if params.useragent != "" {
-		req.Header.Set("User-Agent", params.useragent)
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	if res.StatusCode/100 == 5 { // only 5xx class errors
-		err = newLibError(res.StatusCode, res.Status)
-		return
-	}
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return
-	}
-	err = parseResponse(body, result)
-	return
-}
-
 //////////////
 // POST API //
 //////////////
-func callPost(apiMethod string, uriBase string, params *apiParams, args P, result interface{}, rules P) (err error) {
-	if err = requireAuth(params); err != nil {
-		return
+func callPost(apiMethod string, baseUri string, params *apiParams, args P, result interface{}, rules P, withSession bool) (err error) {
+	if withSession {
+		if err = requireAuth(params); err != nil {
+			return
+		}
 	}
 
-	urlParams := url.Values{}
-	urlParams.Add("method", apiMethod)
-	uri := constructUrl(uriBase, urlParams)
-
-	//post data
-	postData := url.Values{}
-	postData.Add("method", apiMethod)
-	postData.Add("api_key", params.apikey)
-	postData.Add("sk", params.sk)
-
-	tmp := make(map[string]string)
-	tmp["method"] = apiMethod
-	tmp["api_key"] = params.apikey
-	tmp["sk"] = params.sk
-
-	formated, err := formatArgs(args, rules)
-	for k, v := range formated {
-		tmp[k] = v
-		postData.Add(k, v)
-	}
-
-	sig := getSignature(tmp, params.secret)
-	postData.Add("api_sig", sig)
-
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", uri, strings.NewReader(postData.Encode()))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if params.useragent != "" {
-		req.Header.Set("User-Agent", params.useragent)
-	}
-
-	res, err := client.Do(req)
-	//res, err := http.PostForm(uri, postData)
-	if err != nil {
-		return
-	}
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return
-	}
-	err = parseResponse(body, result)
-	return
-}
-
-func callPostWithoutSession(apiMethod string, baseUri string, params *apiParams, args P, result interface{}, rules P) (err error) {
 	urlParams := url.Values{}
 	urlParams.Add("method", apiMethod)
 	uri := constructUrl(baseUri, urlParams)
@@ -318,10 +205,16 @@ func callPostWithoutSession(apiMethod string, baseUri string, params *apiParams,
 	postData := url.Values{}
 	postData.Add("method", apiMethod)
 	postData.Add("api_key", params.apikey)
+	if withSession {
+		postData.Add("sk", params.sk)
+	}
 
 	tmp := make(map[string]string)
 	tmp["method"] = apiMethod
 	tmp["api_key"] = params.apikey
+	if withSession {
+		tmp["sk"] = params.sk
+	}
 
 	formated, err := formatArgs(args, rules)
 	for k, v := range formated {

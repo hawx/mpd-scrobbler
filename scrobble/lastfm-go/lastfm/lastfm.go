@@ -34,16 +34,3 @@ func New(key, secret, uriBase string) (api *Api) {
 	}
 	return
 }
-
-func (api *Api) SetSession(sessionkey string) {
-	api.params.sk = sessionkey
-}
-
-func (api Api) GetSessionKey() (sk string) {
-	sk = api.params.sk
-	return
-}
-
-func (api *Api) SetUserAgent(useragent string) {
-	api.params.useragent = useragent
-}
