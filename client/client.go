@@ -54,6 +54,16 @@ func (c *Client) Song() Song {
 
 func (c *Client) Watch(interval time.Duration, toSubmit chan Song, nowPlaying chan Song) {
 	for _ = range time.Tick(interval) {
+		pos, playing, err := c.client.CurrentPos()
+		if !playing {
+			continue
+		}
+
+		if err != nil {
+			log.Println("err(CurrentPos):", err)
+			continue
+		}
+
 		playtime, err := c.client.PlayTime()
 		if err != nil {
 			log.Println("err(PlayTime):", err)
@@ -63,12 +73,6 @@ func (c *Client) Watch(interval time.Duration, toSubmit chan Song, nowPlaying ch
 		song, err := c.client.CurrentSong()
 		if err != nil {
 			log.Println("err(CurrentSong):", err)
-			continue
-		}
-
-		pos, err := c.client.CurrentPos()
-		if err != nil {
-			log.Println("err(CurrentPos):", err)
 			continue
 		}
 

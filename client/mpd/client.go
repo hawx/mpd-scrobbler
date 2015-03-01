@@ -122,9 +122,14 @@ func (c *Client) CurrentSong() (Song, error) {
 	return Song{s["Title"], s["Artist"], s["Album"], s["AlbumArtist"], s["file"]}, nil
 }
 
-func (c *Client) CurrentPos() (pos Pos, err error) {
+func (c *Client) CurrentPos() (pos Pos, playing bool, err error) {
 	st, err := c.cmdReadAttrs("status")
 	if err != nil {
+		return
+	}
+
+	if st["volume"] == "-1" {
+		playing = false
 		return
 	}
 
