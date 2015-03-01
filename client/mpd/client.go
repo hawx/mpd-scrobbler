@@ -128,6 +128,7 @@ func (c *Client) CurrentPos() (pos Pos, playing bool, err error) {
 		return
 	}
 
+	playing = true
 	if st["volume"] == "-1" {
 		playing = false
 		return
