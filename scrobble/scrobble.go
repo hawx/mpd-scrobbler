@@ -1,27 +1,81 @@
 package scrobble
 
 import (
+	"log"
 	"time"
 
 	"github.com/hawx/mpdrobble/scrobble/lastfm"
 )
 
-type Api struct {
-	api  *lastfm.Api
-	Name string
+type Scrobbler interface {
+	Scrobble(artist, album, albumArtist, title string, timestamp time.Time) error
+	NowPlaying(artist, album, albumArtist, title string) error
+	Name() string
 }
 
-func New(name, apiKey, secret, username, password, uriBase string) (*Api, error) {
+func New(db Database, name, apiKey, secret, username, password, uriBase string) (Scrobbler, error) {
 	api := lastfm.New(apiKey, secret, uriBase)
-	err := api.Login(username, password)
+
+	queue, err := db.Queue([]byte(name))
 	if err != nil {
 		return nil, err
 	}
 
-	return &Api{api, name}, nil
+	scrobbler := &lastfmScrobbler{api, username, password, false, name}
+	return &queuedScrobbler{scrobbler, queue}, nil
 }
 
-func (api *Api) Scrobble(artist, album, albumArtist, title string, timestamp time.Time) error {
+type queuedScrobbler struct {
+	Scrobbler
+	queue Queue
+}
+
+func (api *queuedScrobbler) Scrobble(artist, album, albumArtist, title string, timestamp time.Time) (err error) {
+	track, err := Track{artist, album, albumArtist, title, timestamp}, nil
+	for err == nil {
+		err = api.Scrobbler.Scrobble(track.Artist, track.Album, track.AlbumArtist, track.Title, track.Timestamp)
+		if err != nil {
+			break
+		}
+		track, err = api.queue.Dequeue()
+	}
+
+	if err != nil && err != QUEUE_EMPTY {
+		api.queue.Enqueue(track)
+		log.Printf("[%s] Queued: %s by %s\n", api.Name(), title, artist)
+	}
+
+	return err
+}
+
+type lastfmScrobbler struct {
+	api      *lastfm.Api
+	username string
+	password string
+	loggedIn bool
+	name     string
+}
+
+func (api *lastfmScrobbler) Name() string {
+	return api.name
+}
+
+func (api *lastfmScrobbler) login() error {
+	if !api.loggedIn {
+		err := api.api.Login(api.username, api.password)
+		if err == nil {
+			log.Printf("[%s] Connected", api.Name())
+		}
+		return err
+	}
+	return nil
+}
+
+func (api *lastfmScrobbler) Scrobble(artist, album, albumArtist, title string, timestamp time.Time) error {
+	if err := api.login(); err != nil {
+		return err
+	}
+
 	err := api.api.Scrobble(lastfm.ScrobbleArgs{
 		Artist:      artist,
 		Album:       album,
@@ -29,15 +83,29 @@ func (api *Api) Scrobble(artist, album, albumArtist, title string, timestamp tim
 		Track:       title,
 		Timestamp:   timestamp.Unix(),
 	})
+
+	if err == nil {
+		log.Printf("[%s] Submitted: %s by %s\n", api.Name(), title, artist)
+	}
+
 	return err
 }
 
-func (api *Api) NowPlaying(artist, album, albumArtist, title string) error {
+func (api *lastfmScrobbler) NowPlaying(artist, album, albumArtist, title string) error {
+	if err := api.login(); err != nil {
+		return err
+	}
+
 	err := api.api.UpdateNowPlaying(lastfm.UpdateNowPlayingArgs{
 		Artist:      artist,
 		Track:       title,
 		Album:       album,
 		AlbumArtist: albumArtist,
 	})
+
+	if err == nil {
+		log.Printf("[%s] NowPlaying: %s by %s\n", api.Name(), title, artist)
+	}
+
 	return err
 }

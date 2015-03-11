@@ -30,12 +30,14 @@ const helpMessage = `Usage: mpdrobble [options]
   Scrobbles tracks from mpd.
 
     --config <path>  # Path to config file (default: './config.toml')
+    --db <path>      # Path to database for caching (default: './scrobble.db')
     --port <port>    # Port mpd running on (default: '6600')
     --help           # Display this message
 `
 
 var (
 	config = flag.String("config", "./config.toml", "")
+	dbPath = flag.String("db", "./scrobble.db", "")
 	port   = flag.String("port", "6600", "")
 	help   = flag.Bool("help", false, "")
 )
@@ -61,20 +63,25 @@ func main() {
 	}
 	defer c.Close()
 
+	db, err := scrobble.Open(*dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	var conf map[string]map[string]string
 	if _, err := toml.DecodeFile(*config, &conf); err != nil {
 		log.Fatal(err)
 	}
 
-	apis := []*scrobble.Api{}
+	apis := []scrobble.Scrobbler{}
 	for k, v := range conf {
-		api, err := scrobble.New(k, v["key"], v["secret"], v["username"], v["password"], v["uri"])
+		api, err := scrobble.New(db, k, v["key"], v["secret"], v["username"], v["password"], v["uri"])
 		if err != nil {
 			log.Fatal(k, " ", err)
 		}
 
 		apis = append(apis, api)
-		log.Println("connected to", k)
 	}
 
 	toSubmit := make(chan client.Song)
@@ -88,19 +95,17 @@ func main() {
 				for _, api := range apis {
 					err := api.NowPlaying(s.Artist, s.Album, s.AlbumArtist, s.Title)
 					if err != nil {
-						log.Println("err(Submit,", api.Name+"):", err)
+						log.Printf("[%s] err(NowPlaying): %s\n", api.Name(), err)
 					}
 				}
-				log.Println("Now playing:", s)
 
 			case s := <-toSubmit:
 				for _, api := range apis {
 					err := api.Scrobble(s.Artist, s.Album, s.AlbumArtist, s.Title, s.Start)
 					if err != nil {
-						log.Println("err(Submit,", api.Name+"):", err)
+						log.Printf("[%s] err(Scrobble): %s\n", api.Name(), err)
 					}
 				}
-				log.Println("Submitted:", s)
 			}
 		}
 	}()
