@@ -40,9 +40,13 @@ func (api *queuedScrobbler) Scrobble(artist, album, albumArtist, title string, t
 		track, err = api.queue.Dequeue()
 	}
 
-	if err != nil && err != QUEUE_EMPTY {
-		api.queue.Enqueue(track)
-		log.Printf("[%s] Queued: %s by %s\n", api.Name(), title, artist)
+	if err != nil {
+		if err == QUEUE_EMPTY {
+			return nil
+		} else {
+			api.queue.Enqueue(track)
+			log.Printf("[%s] Queued: %s by %s\n", api.Name(), title, artist)
+		}
 	}
 
 	return err
@@ -65,6 +69,7 @@ func (api *lastfmScrobbler) login() error {
 		err := api.api.Login(api.username, api.password)
 		if err == nil {
 			log.Printf("[%s] Connected", api.Name())
+			api.loggedIn = true
 		}
 		return err
 	}
