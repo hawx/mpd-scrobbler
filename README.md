@@ -1,15 +1,15 @@
-# mpdrobble
+# mpd-scrobbler
 
 Scrobbler for mpd.
 
 Install with:
 
 ``` bash
-$ go get github.com/hawx/mpdrobble
+$ go get github.com/hawx/mpd-scrobbler
 ```
 
 Then create a config file somewhere, for example
-`~/.config/mpdrobble/config.toml`, in the format:
+`~/.config/mpd-scrobbler/config.toml`, in the format:
 
 ``` toml
 [lastfm]
@@ -30,6 +30,6 @@ As shown multiple sections can be added for other services by also specifying
 the uri to the api endpoint. It can then be run with:
 
 ``` bash
-$ mpdrobble --config ~/.config/mpdrobble/config.toml
+$ mpd-scrobbler --config ~/.config/mpd-scrobbler/config.toml
 ...
 ```

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/hawx/mpdrobble/client"
-	"github.com/hawx/mpdrobble/scrobble"
+	"github.com/hawx/mpd-scrobbler/client"
+	"github.com/hawx/mpd-scrobbler/scrobble"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 	sleepTime = 5 * time.Second
 )
 
-const helpMessage = `Usage: mpdrobble [options]
+const helpMessage = `Usage: mpd-scrobbler [options]
 
   Scrobbles tracks from mpd.
 

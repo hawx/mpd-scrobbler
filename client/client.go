@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/hawx/mpdrobble/client/mpd"
+	"github.com/hawx/mpd-scrobbler/client/mpd"
 )
 
 const (
