@@ -5,7 +5,7 @@ Scrobbler for mpd.
 Install with:
 
 ``` bash
-$ go get github.com/hawx/mpd-scrobbler
+$ go get hawx.me/code/mpd-scrobbler
 ```
 
 Then create a config file somewhere, for example
