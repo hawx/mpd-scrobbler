@@ -20,6 +20,7 @@ type Client struct {
 	start     int // stats curtime
 	starttime time.Time
 	submitted bool
+	quit      chan struct{}
 }
 
 func Dial(network, addr string) (*Client, error) {
@@ -28,17 +29,35 @@ func Dial(network, addr string) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{
+	client := &Client{
 		client:    c,
 		song:      mpd.Song{},
 		pos:       mpd.Pos{},
 		start:     0,
 		starttime: time.Now(),
 		submitted: false,
-	}, nil
+		quit:      make(chan struct{}),
+	}
+
+	go client.keepalive()
+	return client, nil
+}
+
+func (c *Client) keepalive() {
+	for {
+		select {
+		case <-time.After(30 * time.Second):
+			if err := c.client.Ping(); err != nil {
+				// reopen connection?
+			}
+		case <-c.quit:
+			break
+		}
+	}
 }
 
 func (c *Client) Close() error {
+	close(c.quit)
 	return c.client.Close()
 }
 
