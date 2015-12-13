@@ -72,7 +72,6 @@ func getSignature(params map[string]string, secret string) string {
 //////////////
 func (api *Api) callPost(apiMethod string, args Args, result interface{}, withSession bool) error {
 	urlParams := url.Values{}
-	urlParams.Add("method", apiMethod)
 	uri := constructUrl(api.uriBase, urlParams)
 
 	//post data
