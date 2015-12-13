@@ -22,6 +22,30 @@ func New(db Database, name, apiKey, secret, username, password, uriBase string) 
 	}
 
 	scrobbler := &lastfmScrobbler{api, username, password, false, name}
+
+	log.Printf("[%s] Emptying queue\n", name)
+	for {
+		track, err := queue.Dequeue()
+		if err != nil {
+			if err != QUEUE_EMPTY {
+				queue.Enqueue(track)
+				log.Printf("[%s] Queued: %s by %s\n", name, track.Title, track.Artist)
+			}
+			log.Printf("[%s] %s\n", name, err)
+			break
+		}
+
+		err = scrobbler.Scrobble(track.Artist, track.Album, track.AlbumArtist, track.Title, track.Timestamp)
+		if err != nil {
+			queue.Enqueue(track)
+			log.Printf("[%s] Queued: %s by %s\n", name, track.Title, track.Artist)
+			log.Printf("[%s] %s\n", name, err)
+			break
+		}
+	}
+
+	log.Printf("[%s] Emptying done\n", name)
+
 	return &queuedScrobbler{scrobbler, queue}, nil
 }
 
